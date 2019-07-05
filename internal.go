@@ -43,9 +43,7 @@ func pagesFromInput(p string, np int) (selection map[int]bool, whenRangesEnd []i
 			} else {
 				ll = []string{g, g}
 			}
-			for i, l := range ll {
-				ll[i] = strings.TrimSpace(l)
-			}
+			ll = trimspace(ll)
 			a, err = strconv.Atoi(ll[0])
 			if err != nil {
 				err = errors.New("wrong values for pages")
@@ -91,9 +89,7 @@ func positionsFromInput(pos string) (positions [][]int, err error) {
 			err = errors.New("unexpected length position")
 			return
 		}
-		for i, p := range pp {
-			pp[i] = strings.TrimSpace(p)
-		}
+		pp = trimspace(pp)
 		a, err = strconv.Atoi(pp[0])
 		if err != nil {
 			err = errors.New("wrong values for position")
@@ -169,4 +165,11 @@ func whereIBelong(i int, limits []int) int {
 	}
 
 	return inx
+}
+
+func trimspace(ss []string) []string {
+	for i, s := range ss {
+		ss[i] = strings.TrimSpace(s)
+	}
+	return ss
 }
