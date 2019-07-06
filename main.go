@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"image"
 	"log"
+	"os"
 	"path"
 	"strings"
 
@@ -39,9 +41,13 @@ func initFlags() error {
 	if fn == "" || stamp == "" {
 		return errors.New("pdf file required")
 	}
-
-	if ext := strings.ToLower(path.Ext(stamp)); ext != ".pdf" ||
-		ext != ".png" {
+	ext := strings.ToLower(path.Ext(stamp))
+	var ok bool
+	switch ext {
+	case ".pdf", ".png", ".jpg", ".jpeg":
+		ok = true
+	}
+	if !ok {
 		return errors.New("stamp type unacceptable")
 	}
 
@@ -105,13 +111,40 @@ func main() {
 	var fpdi = gofpdi.NewImporter()
 	addtemplate, usetemplate := importer(pdf, fpdi)
 
-	// add stamp template
-	fpdi.SetSourceFile(stamp)
-	box := "/MediaBox"
-	stampid, err := addtemplate(1, box)
-	if err != nil {
-		err = errors.Wrap(err, "addtemplate")
-		log.Fatal(err)
+	var (
+		stampid      int
+		stamptpl     gofpdf.Template
+		stampIsImage bool
+		box          string = "/MediaBox"
+		ext          string
+	)
+	if ext = path.Ext(stamp)[1:]; ext != "pdf" {
+		stampIsImage = true
+		fimg, err := os.Open(stamp)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer fimg.Close()
+		img, _, err := image.Decode(fimg)
+		if err != nil {
+			log.Fatal(err)
+		}
+		bb := img.Bounds()
+		w, h := bb.Max.X-bb.Min.X, bb.Max.Y-bb.Min.Y
+		r := float64(w) / float64(h)
+		hstamp := wstamp / r
+		// create a template
+		stamptpl = pdf.CreateTemplateCustom(gofpdf.PointType{0, 0}, gofpdf.SizeType{Wd: wstamp, Ht: hstamp}, func(tpl *gofpdf.Tpl) {
+			tpl.ImageOptions(stamp, 0, 0, wstamp, hstamp, false, gofpdf.ImageOptions{ImageType: ext, ReadDpi: true}, 0, "")
+		})
+	} else {
+		// add stamp template
+		fpdi.SetSourceFile(stamp)
+		stampid, err = addtemplate(1, box)
+		if err != nil {
+			err = errors.Wrap(err, "addtemplate")
+			log.Fatal(err)
+		}
 	}
 
 	// we will import every pdf page from fn
@@ -144,7 +177,15 @@ func main() {
 			xstamp = float64(positions[inx][0])
 			ystamp = float64(positions[inx][1])
 			pdf.SetAlpha(0.7, "Multiply")
-			usetemplate(stampid, xstamp, ystamp, wstamp, 0.0)
+			if stampIsImage {
+				_, tplsize := stamptpl.Size()
+				ratio := tplsize.Wd / tplsize.Ht
+				hstamp := wstamp / ratio
+				askedsize := gofpdf.SizeType{Wd: wstamp, Ht: hstamp}
+				pdf.UseTemplateScaled(stamptpl, gofpdf.PointType{X: xstamp, Y: ystamp}, askedsize)
+			} else {
+				usetemplate(stampid, xstamp, ystamp, wstamp, 0.0)
+			}
 			pdf.SetAlpha(1.0, "Normal")
 		}
 	}
