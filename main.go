@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"path"
+	"strings"
 
 	"github.com/jung-kurt/gofpdf"
 	"github.com/phpdave11/gofpdi"
@@ -37,6 +38,11 @@ func initFlags() error {
 
 	if fn == "" || stamp == "" {
 		return errors.New("pdf file required")
+	}
+
+	if ext := strings.ToLower(path.Ext(stamp)); ext != ".pdf" ||
+		ext != ".png" {
+		return errors.New("stamp type unacceptable")
 	}
 
 	if fout == "" {
