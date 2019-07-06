@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/jung-kurt/gofpdf"
 	"github.com/phpdave11/gofpdi"
+	"github.com/pkg/errors"
 	rscpdf "rsc.io/pdf"
 )
 
@@ -74,6 +74,7 @@ func main() {
 	pg = rf.Page(1)
 	pgw, pgh, err = getDimensions(pg, "MediaBox", k)
 	if err != nil {
+		err = errors.Wrap(err, "getDimensions")
 		log.Fatal(err)
 	}
 	media := gofpdf.SizeType{pgw, pgh}
@@ -81,11 +82,13 @@ func main() {
 
 	positions, err := positionsFromInput(pos)
 	if err != nil {
+		err = errors.Wrap(err, "positionsFromInput")
 		log.Fatal(err)
 	}
 
 	selection, whenRangesEnd, err := pagesFromInput(p, np)
 	if err != nil {
+		err = errors.Wrap(err, "pagesFromInput")
 		log.Fatal(err)
 	}
 
@@ -101,6 +104,7 @@ func main() {
 	box := "/MediaBox"
 	stampid, err := addtemplate(1, box)
 	if err != nil {
+		err = errors.Wrap(err, "addtemplate")
 		log.Fatal(err)
 	}
 
@@ -110,10 +114,22 @@ func main() {
 		inx int
 	)
 	for i := 1; i <= np; i++ {
+		if i > 1 {
+			pg = rf.Page(i)
+			pgwi, pghi, err := getDimensions(pg, "MediaBox", k)
+			if err != nil {
+				err = errors.Wrap(err, fmt.Sprintf("getDimensions page %d", i))
+				log.Fatal(err)
+			}
+			if pgwi != pgw || pghi != pgh {
+				pdf.SetPageBox("MediaBox", 0, 0, pgw, pgh)
+			}
+		}
 		pdf.AddPage()
 		// add page i as template
 		tplid, err := addtemplate(i, box)
 		if err != nil {
+			err = errors.Wrap(err, fmt.Sprintf("addtemplate page %d", i))
 			log.Fatal(err)
 		}
 		usetemplate(tplid, 0, 0, pgw, 0)
@@ -129,6 +145,7 @@ func main() {
 
 	err = pdf.OutputFileAndClose(fout)
 	if err != nil {
+		err = errors.Wrap(err, "OutputFileAndClose")
 		log.Fatal(err)
 	}
 }

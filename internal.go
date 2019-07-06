@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"log"
 	"math"
 	"strconv"
@@ -9,20 +8,9 @@ import (
 
 	"github.com/jung-kurt/gofpdf"
 	"github.com/phpdave11/gofpdi"
+	"github.com/pkg/errors"
 	rscpdf "rsc.io/pdf"
 )
-
-func unpanic(err error) {
-	if r := recover(); r != nil {
-		var ok bool
-		err, ok = r.(error)
-		log.Println(err)
-		if !ok {
-			err = errors.New("expected to get an error from recover")
-			log.Println(err)
-		}
-	}
-}
 
 // pagesFromInput process a string that represents pages chosen to be stamped
 // returns 2 slices
@@ -44,22 +32,29 @@ func pagesFromInput(p string, np int) (selection map[int]bool, whenRangesEnd []i
 				ll = []string{g, g}
 			}
 			ll = trimspace(ll)
-			a, err = strconv.Atoi(ll[0])
-			if err != nil {
-				err = errors.New("wrong values for pages")
-				return
+			if ll[0] == "" {
+				a = 1
+			} else {
+				a, err = strconv.Atoi(ll[0])
+				if err != nil {
+					err = errors.New("wrong values for pages")
+					return
+				}
 			}
-			z, err = strconv.Atoi(ll[1])
-			if err != nil {
-				err = errors.New("wrong values for pages")
-				return
+			if ll[1] == "" {
+				z = np
+			} else {
+				z, err = strconv.Atoi(ll[1])
+				if err != nil {
+					err = errors.New("wrong values for pages")
+					return
+				}
 			}
 			if a > z {
 				a, z = z, a
 			}
-			if err != nil {
-				err = errors.New("wrong values for pages")
-				return
+			if z > np {
+				z = np
 			}
 			for inx := a; inx <= z; inx++ {
 				selection[inx] = true
@@ -111,8 +106,18 @@ func importer(pdf *gofpdf.Fpdf, fpdi *gofpdi.Importer) (
 	func(i int, box string) (int, error),
 	func(int, float64, float64, float64, float64) error,
 ) {
+
 	return func(i int, box string) (tplid int, err error) {
-			defer unpanic(err)
+			defer func() {
+				if r := recover(); r != nil {
+					var ok bool
+					// alter named err variable
+					err, ok = r.(error)
+					if !ok {
+						err = errors.New("expected to get an error from recover")
+					}
+				}
+			}()
 			box = strings.TrimLeft(box, "/")
 			tplid = fpdi.ImportPage(i, "/"+box)
 			// import template to page
@@ -124,7 +129,17 @@ func importer(pdf *gofpdf.Fpdf, fpdi *gofpdi.Importer) (
 			pdf.ImportObjPos(importedObjPos)
 			return tplid, nil
 		}, func(tplid int, x, y, w, h float64) (err error) {
-			defer unpanic(err)
+			defer func() {
+				if r := recover(); r != nil {
+					var ok bool
+					err, ok = r.(error)
+					log.Println("unpanic", err)
+					if !ok {
+						err = errors.New("expected to get an error from recover")
+						log.Println(err)
+					}
+				}
+			}()
 			tplname, sx, sy, tx, ty := fpdi.UseTemplate(tplid, x, y, w, h)
 			pdf.UseImportedTemplate(tplname, sx, sy, tx, ty)
 			return
