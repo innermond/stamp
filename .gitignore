@@ -1,4 +1,9 @@
 *.pdf
+*.jpg
+*.jpeg
+*.gif
+*.png
+*.tif
 *.json
 *.z
 *.map
