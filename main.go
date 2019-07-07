@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/jung-kurt/gofpdf"
-	"github.com/phpdave11/gofpdi"
+	pdi "github.com/jung-kurt/gofpdf/contrib/gofpdi"
 	"github.com/pkg/errors"
 	rscpdf "rsc.io/pdf"
 )
@@ -18,6 +18,8 @@ var (
 	fn, fout, stamp, postfix, unit string
 	p, pos                         string
 	xstamp, ystamp, wstamp, hstamp float64
+	alpha                          float64
+	overcolor                      string
 )
 
 func initFlags() error {
@@ -35,6 +37,8 @@ func initFlags() error {
 	flag.Float64Var(&ystamp, "y", 0.0, "ypos stamp")
 	flag.Float64Var(&wstamp, "w", 0.0, "width stamp")
 	flag.Float64Var(&hstamp, "h", 0.0, "height stamp")
+	flag.Float64Var(&alpha, "alpha", 0.7, "transparency from 0.0 invisible to 1.0 opaque")
+	flag.StringVar(&overcolor, "overcolor", "Multiply", "how stamo color will blend with under colors")
 
 	flag.Parse()
 
@@ -74,8 +78,10 @@ func main() {
 
 	np := rf.NumPage()
 	var (
-		pg       rscpdf.Page
-		pgw, pgh float64
+		pg         rscpdf.Page
+		pgw, pgh   float64
+		box        = "/MediaBox"
+		boxNoSlash = strings.TrimLeft(box, "/")
 	)
 	// set default page media acordind to unit
 	k := 1.0
@@ -84,7 +90,7 @@ func main() {
 	}
 	// assume document has same page dimensions expressed as points as page 1
 	pg = rf.Page(1)
-	pgw, pgh, err = getDimensions(pg, "MediaBox", k)
+	pgw, pgh, err = getDimensions(pg, boxNoSlash, k)
 	if err != nil {
 		err = errors.Wrap(err, "getDimensions")
 		log.Fatal(err)
@@ -108,13 +114,9 @@ func main() {
 		whenRangesEnd = whenRangesEnd[:len(positions)]
 	}
 
-	var fpdi = gofpdi.NewImporter()
-	addtemplate, usetemplate := importer(pdf, fpdi)
-
 	var (
 		stampid      int
 		stampIsImage bool
-		box          string = "/MediaBox"
 		ext          string
 		opt          = gofpdf.ImageOptions{}
 	)
@@ -133,49 +135,35 @@ func main() {
 		}
 		pdf.RegisterImageOptionsReader(stamp, opt, fimg)
 	} else {
-		// add stamp template
-		fpdi.SetSourceFile(stamp)
-		stampid, err = addtemplate(1, box)
-		if err != nil {
-			err = errors.Wrap(err, "addtemplate")
-			log.Fatal(err)
-		}
+		stampid = pdi.ImportPage(pdf, stamp, 1, box)
 	}
 
-	// we will import every pdf page from fn
-	fpdi.SetSourceFile(fn)
 	var (
 		inx int
 	)
 	for i := 1; i <= np; i++ {
 		if i > 1 {
 			pg = rf.Page(i)
-			pgwi, pghi, err := getDimensions(pg, "MediaBox", k)
+			pgw, pgh, err = getDimensions(pg, boxNoSlash, k)
 			if err != nil {
 				err = errors.Wrap(err, fmt.Sprintf("getDimensions page %d", i))
 				log.Fatal(err)
 			}
-			if pgwi != pgw || pghi != pgh {
-				pdf.SetPageBox("MediaBox", 0, 0, pgw, pgh)
-			}
+			pdf.SetPageBox(boxNoSlash, 0, 0, pgw, pgh)
 		}
 		pdf.AddPage()
 		// add page i as template
-		tplid, err := addtemplate(i, box)
-		if err != nil {
-			err = errors.Wrap(err, fmt.Sprintf("addtemplate page %d", i))
-			log.Fatal(err)
-		}
-		usetemplate(tplid, 0, 0, pgw, 0)
+		tplid := pdi.ImportPage(pdf, fn, i, box)
+		pdi.UseImportedTemplate(pdf, tplid, 0, 0, pgw, pgh)
 		if _, ok := selection[i]; ok {
 			inx = whereIBelong(i, whenRangesEnd)
 			xstamp = float64(positions[inx][0])
 			ystamp = float64(positions[inx][1])
-			pdf.SetAlpha(0.7, "Multiply")
+			pdf.SetAlpha(alpha, overcolor)
 			if stampIsImage {
 				pdf.ImageOptions(stamp, xstamp, ystamp, wstamp, hstamp, false, opt, 0, "")
 			} else {
-				usetemplate(stampid, xstamp, ystamp, wstamp, hstamp)
+				pdi.UseImportedTemplate(pdf, stampid, xstamp, ystamp, wstamp, hstamp)
 			}
 			pdf.SetAlpha(1.0, "Normal")
 		}
