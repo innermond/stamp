@@ -97,6 +97,9 @@ func main() {
 	}
 	media := gofpdf.SizeType{pgw, pgh}
 	pdf := gofpdf.NewCustom(&gofpdf.InitType{UnitStr: unit, Size: media})
+	wout, _ := os.Create(fout)
+	pdf.FlushTo(wout)
+	pdf.PutHeader()
 
 	positions, err := positionsFromInput(pos)
 	if err != nil {
@@ -167,9 +170,11 @@ func main() {
 			}
 			pdf.SetAlpha(1.0, "Normal")
 		}
+		pdf.WritePage()
 	}
 
-	err = pdf.OutputFileAndClose(fout)
+	pdf.Close()
+	err = wout.Close()
 	if err != nil {
 		err = errors.Wrap(err, "OutputFileAndClose")
 		log.Fatal(err)
