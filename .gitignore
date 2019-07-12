@@ -9,4 +9,5 @@
 *.map
 stamp
 tmp
+exp/
 
