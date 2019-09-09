@@ -8,5 +8,3 @@ require (
 	github.com/pkg/errors v0.8.1
 	rsc.io/pdf v0.1.1
 )
-
-replace github.com/jung-kurt/gofpdf => ../gofpdf

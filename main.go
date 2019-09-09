@@ -149,7 +149,6 @@ func main() {
 				err = errors.Wrap(err, fmt.Sprintf("getDimensions page %d", i))
 				log.Fatal(err)
 			}
-			pdf.SetPageBox(boxNoSlash, 0, 0, pgw, pgh)
 		}
 		pdf.AddPage()
 		// add page i as template
